@@ -1,0 +1,14 @@
+[Unit]
+Description=FortiGate CN IP Auto Updater
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/fortigate-updater
+ExecStart=/usr/bin/python3 /root/fortigate-updater/fortigate_cn_ip_updater.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
