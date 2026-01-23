@@ -26,7 +26,7 @@ CONFIG = {
     # 飞塔防火墙配置
     'FW_HOST': '10.4.0.1',
     'FW_PORT': 8443,
-    'API_TOKEN': 'Qsk7wwkh9g4rjxzbQp4wjhH7gq0smd',  # 建议使用环境变量
+    'API_TOKEN': 'your_api_token_here',  # 建议使用环境变量
     'VDOM': 'root',
 
     # IP数据源配置
