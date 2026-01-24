@@ -24,8 +24,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==================== 配置区域 ====================
 CONFIG = {
     # 飞塔防火墙配置
-    'FW_HOST': '10.4.0.1',
-    'FW_PORT': 8443,
+    'FW_HOST': 'your_foritgate_ip_address',
+    'FW_PORT': 443,
     'API_TOKEN': 'your_api_token_here',  # 建议使用环境变量
     'VDOM': 'root',
 
@@ -49,7 +49,7 @@ CONFIG = {
     'UPDATE_TIME': '03:00',  # 每天凌晨3点
 
     # 企业微信通知配置（可选）
-    'WECHAT_WEBHOOK': 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=44a6bbd8-3732-49e6-9995-03130575faf3',  # 填入企业微信机器人webhook URL
+    'WECHAT_WEBHOOK': 'your_qiyewechat_webhook',  # 填入企业微信机器人webhook URL
 
     # 备份和日志配置
     'BACKUP_DIR': './backups',
