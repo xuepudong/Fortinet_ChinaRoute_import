@@ -683,8 +683,8 @@ python3 fortigate_cn_ip_updater.py --once
 
 ## 📧 联系方式
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/fortigate-cn-ip-updater/issues)
-- **Email**: your.email@example.com
+- **Issues**: [GitHub Issues](https://github.com/xuepudong/Fortinet_ChinaRoute_import/issues)
+- **Email**: pudong.xue@bjyy.info
 - **企业微信**: 可添加机器人到您的企业微信群
 
 ---
