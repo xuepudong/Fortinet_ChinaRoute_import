@@ -70,7 +70,7 @@
 #### 1. 克隆项目
 
 ```bash
-git clone https://github.com/yourusername/fortigate-cn-ip-updater.git
+git clone https://github.com/xuepudong/Fortinet_ChinaRoute_import.git
 cd fortigate-cn-ip-updater
 ```
 
@@ -621,7 +621,7 @@ du -sh logs/ backups/
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/fortigate-cn-ip-updater.git
+git clone https://github.com/xuepudong/Fortinet_ChinaRoute_import.git
 cd fortigate-cn-ip-updater
 
 # 创建虚拟环境
