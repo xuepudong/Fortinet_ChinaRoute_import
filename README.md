@@ -693,6 +693,6 @@ python3 fortigate_cn_ip_updater.py --once
 
 **如果这个项目对你有帮助，请给个 ⭐️ Star 支持一下！**
 
-Made with ❤️ by [Beijing Yiyuan Information Technology Co., Ltd.]
+Made with ❤️ by [Beijing Yiyuan Information Technology Co., Ltd.](https://www.bjyy.info)
 
 </div>
