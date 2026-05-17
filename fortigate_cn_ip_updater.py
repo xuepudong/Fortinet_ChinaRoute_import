@@ -4,6 +4,7 @@
 基于苍狼IP库，每天自动更新中国三大运营商的IP地址段
 """
 
+import os
 import requests
 import urllib3
 import json
@@ -59,6 +60,20 @@ CONFIG = {
     'MAX_WORKERS': 20,
 }
 # ================================================
+
+# 环境变量覆盖配置
+if os.environ.get('FW_HOST'):
+    CONFIG['FW_HOST'] = os.environ['FW_HOST']
+if os.environ.get('FW_PORT'):
+    CONFIG['FW_PORT'] = int(os.environ['FW_PORT'])
+if os.environ.get('API_TOKEN'):
+    CONFIG['API_TOKEN'] = os.environ['API_TOKEN']
+if os.environ.get('VDOM'):
+    CONFIG['VDOM'] = os.environ['VDOM']
+if os.environ.get('WECHAT_WEBHOOK'):
+    CONFIG['WECHAT_WEBHOOK'] = os.environ['WECHAT_WEBHOOK']
+if os.environ.get('UPDATE_TIME'):
+    CONFIG['UPDATE_TIME'] = os.environ['UPDATE_TIME']
 
 
 class Logger:

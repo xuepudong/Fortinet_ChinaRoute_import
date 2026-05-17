@@ -1,0 +1,18 @@
+services:
+  fortigate-updater:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: fortigate-cn-ip-updater
+    restart: unless-stopped
+    environment:
+      - FW_HOST=192.168.1.1
+      - FW_PORT=443
+      - API_TOKEN=your_api_token_here
+      - VDOM=root
+      - UPDATE_TIME=03:00
+      - WECHAT_WEBHOOK=
+    volumes:
+      - ./backups:/app/backups
+      - ./logs:/app/logs

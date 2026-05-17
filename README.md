@@ -156,7 +156,7 @@ python3 fortigate_cn_ip_updater.py --once
 
 ## 📦 部署方式
 
-### 方式一：Systemd 服务（推荐）
+### 方式二：Systemd 服务
 
 **适用场景**：生产环境，需要开机自启和自动重启
 
@@ -233,7 +233,7 @@ sudo systemctl stop fortigate-updater
 
 ---
 
-### 方式二：Cron 定时任务
+### 方式三：Cron 定时任务
 
 **适用场景**：简单部署，不需要脚本常驻
 
@@ -263,7 +263,100 @@ python3 fortigate_cn_ip_updater.py --once
 
 ---
 
-### 方式三：Nohup 后台运行
+### 方式一：Docker 部署（推荐）
+
+**适用场景**：容器化部署，支持 amd64 / arm64 多架构
+
+#### 使用预构建镜像
+
+```bash
+docker pull xuepudong/fortigate-cn-ip-updater:latest
+```
+
+#### 运行方式一：常驻定时模式（每天自动更新）
+
+```bash
+docker run -d --restart unless-stopped \
+  --name fortigate-cn-ip-updater \
+  -e FW_HOST=192.168.1.1 \
+  -e FW_PORT=443 \
+  -e API_TOKEN=your_api_token_here \
+  -e VDOM=root \
+  -e UPDATE_TIME=03:00 \
+  -e WECHAT_WEBHOOK= \
+  -v $(pwd)/backups:/app/backups \
+  -v $(pwd)/logs:/app/logs \
+  xuepudong/fortigate-cn-ip-updater:latest
+```
+
+#### 运行方式二：执行一次后退出（适合外部 cron 调度）
+
+```bash
+docker run --rm \
+  -e FW_HOST=192.168.1.1 \
+  -e API_TOKEN=your_api_token_here \
+  -v $(pwd)/backups:/app/backups \
+  -v $(pwd)/logs:/app/logs \
+  xuepudong/fortigate-cn-ip-updater:latest \
+  python -u fortigate_cn_ip_updater.py --once
+```
+
+#### 使用 Docker Compose
+
+创建 `docker-compose.yml`：
+
+```yaml
+services:
+  fortigate-updater:
+    image: xuepudong/fortigate-cn-ip-updater:latest
+    container_name: fortigate-cn-ip-updater
+    restart: unless-stopped
+    environment:
+      - FW_HOST=192.168.1.1
+      - FW_PORT=443
+      - API_TOKEN=your_api_token_here
+      - VDOM=root
+      - UPDATE_TIME=03:00
+      - WECHAT_WEBHOOK=
+    volumes:
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+```
+
+启动：
+
+```bash
+docker compose up -d
+
+# 查看日志
+docker compose logs -f
+
+# 停止
+docker compose down
+```
+
+#### 自行构建镜像（多架构）
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t your-registry/fortigate-cn-ip-updater:latest \
+  --push .
+```
+
+#### 环境变量说明
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `FW_HOST` | 是 | - | 防火墙 IP 地址 |
+| `FW_PORT` | 否 | `443` | 防火墙管理端口 |
+| `API_TOKEN` | 是 | - | FortiGate API Token |
+| `VDOM` | 否 | `root` | VDOM 名称 |
+| `UPDATE_TIME` | 否 | `03:00` | 每天定时更新时间 |
+| `WECHAT_WEBHOOK` | 否 | - | 企业微信机器人 Webhook URL |
+
+---
+
+### 方式四：Nohup 后台运行
 
 **适用场景**：临时运行，快速测试
 
