@@ -1,0 +1,25 @@
+services:
+  fortigate-cn-updater:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fortigate-cn-updater:china-only
+    container_name: fortigate-allcn-updater
+    restart: unless-stopped
+    environment:
+      # === 改这两行就能用 ===
+      - FW_HOST=192.168.1.1
+      - API_TOKEN=your_api_token_here
+      # === 以下按需修改 ===
+      - FW_PORT=443
+      - VDOM=root
+      - UPDATE_TIME=03:00
+      - GROUP_NAME=Group_ALL-CN
+      - MAX_WORKERS=20
+      - WECHAT_WEBHOOK=
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    # 启动即更新一次，之后每天 UPDATE_TIME 定时更新
+    command: ["--now"]
