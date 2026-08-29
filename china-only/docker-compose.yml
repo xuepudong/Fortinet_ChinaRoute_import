@@ -1,11 +1,16 @@
 services:
   fortigate-cn-updater:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: fortigate-cn-updater:china-only
+    # 用 Docker Hub 上的多架构镜像（amd64 / arm64 自动匹配）
+    image: ${IMAGE:xuepudong/fortigate-cn-ip-updater:only-all_cn}
+    # 想本地自行构建就取消下面两行注释
+    # build:
+    #   context: .
     container_name: fortigate-allcn-updater
     restart: unless-stopped
+    # iStoreOS / OpenWrt 等环境下，若容器连不通 FortiGate（连接超时），
+    # 多半是防火墙不允许 docker zone 转发到 lan zone。取消下面这行注释，
+    # 让容器直接使用宿主机网络即可绕开：
+    # network_mode: host
     environment:
       # === 改这两行就能用 ===
       - FW_HOST=192.168.1.1

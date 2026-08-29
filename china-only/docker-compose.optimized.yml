@@ -1,0 +1,42 @@
+services:
+  fortigate-cn-updater:
+    build: .
+    container_name: fortigate-allcn-updater
+    restart: unless-stopped
+    # network_mode: host  # 如果容器无法访问防火墙，取消此行注释
+    environment:
+      # 必填配置
+      - FW_HOST=${FW_HOST:-10.5.0.1}
+      - FW_PORT=${FW_PORT:-443}
+      - API_TOKEN=${API_TOKEN:-your_api_token_here}
+      - VDOM=${VDOM:-root}
+
+      # 定时配置
+      - UPDATE_TIME=${UPDATE_TIME:-03:00}
+
+      # 性能配置（针对低性能FortiGate优化）
+      - MAX_WORKERS=${MAX_WORKERS:-5}  # 降低并发数（默认20）
+
+      # 可选：企业微信通知
+      - WECHAT_WEBHOOK=${WECHAT_WEBHOOK:-}
+
+      # 可选：自定义配置
+      - GROUP_NAME=${GROUP_NAME:-Group_ALL-CN}
+      - IP_SOURCE_URL=${IP_SOURCE_URL:-https://ispip.clang.cn/all_cn.txt}
+
+      # 容器时区
+      - TZ=Asia/Shanghai
+
+    volumes:
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+
+    # 启动时立即执行一次更新
+    command: ["--now"]
+
+    # 资源限制（可选）
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 512M

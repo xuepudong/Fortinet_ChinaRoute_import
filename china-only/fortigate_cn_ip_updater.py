@@ -340,8 +340,8 @@ class FortiGateIPUpdater:
         except:
             return False
 
-    def create_address(self, name, subnet):
-        """创建单个地址对象"""
+    def create_address(self, name, subnet, retry_on_timeout=True):
+        """创建单个地址对象，支持超时重试"""
         url = f"{self.base_url}/cmdb/firewall/address"
         params = {'vdom': self.vdom}
 
@@ -361,19 +361,46 @@ class FortiGateIPUpdater:
                 'comment': f'Auto-created by CN IP Updater at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
             }
 
+            # 首次尝试
             response = self.session.post(url, params=params, json=data, verify=False, timeout=10)
-            return response.status_code == 200
+
+            if response.status_code == 200:
+                return True
+
+            # 如果是超时或资源不足相关错误，且允许重试，则等待后重试一次
+            if retry_on_timeout:
+                try:
+                    error_msg = response.json().get('error', '').lower() if response.status_code != 200 else ''
+                    # 检测资源不足、超时等错误
+                    if any(keyword in error_msg for keyword in ['timeout', 'resource', 'busy', 'overload']):
+                        time.sleep(0.5)  # 短暂等待
+                        response = self.session.post(url, params=params, json=data, verify=False, timeout=10)
+                        return response.status_code == 200
+                except:
+                    pass
+
+            return False
+
         except Exception as e:
-            self.logger.error(f"创建地址 {name} 失败: {e}")
+            # 捕获超时异常，重试一次
+            if retry_on_timeout and 'timeout' in str(e).lower():
+                try:
+                    time.sleep(0.5)
+                    response = self.session.post(url, params=params, json=data, verify=False, timeout=10)
+                    return response.status_code == 200
+                except:
+                    pass
             return False
 
     def batch_create_addresses(self, addresses):
-        """批量创建地址对象"""
+        """批量创建地址对象，返回成功创建的地址名称列表"""
         self.logger.info(f"正在创建 {len(addresses)} 个地址对象...")
 
         created = 0
         failed = 0
         first_error = None
+        successful_names = []  # 追踪成功创建的地址名称
+        failed_addresses = []  # 追踪失败的地址
 
         with ThreadPoolExecutor(max_workers=self.config['MAX_WORKERS']) as executor:
             futures = {executor.submit(self.create_address, name, subnet): (name, subnet)
@@ -384,10 +411,12 @@ class FortiGateIPUpdater:
                 try:
                     if future.result():
                         created += 1
+                        successful_names.append(name)  # 记录成功的地址
                         if created % 100 == 0:
                             self.logger.info(f"  已创建 {created}/{len(addresses)}...")
                     else:
                         failed += 1
+                        failed_addresses.append((name, subnet))
                         # 只记录第一个失败的详情用于调试
                         if failed == 1 and not first_error:
                             try:
@@ -403,14 +432,44 @@ class FortiGateIPUpdater:
                                 first_error = resp.json() if resp.status_code != 200 else None
                             except:
                                 pass
-                except Exception:
+                except Exception as e:
                     failed += 1
+                    failed_addresses.append((name, subnet))
 
         if first_error:
             self.logger.warning(f"  首个失败示例: {first_error}")
 
-        self.logger.info(f"创建完成: 成功 {created}, 失败 {failed}")
-        return created, failed
+        # 如果有失败的地址，尝试重试一次
+        if failed_addresses:
+            self.logger.info(f"检测到 {len(failed_addresses)} 个失败地址，等待5秒后重试...")
+            time.sleep(5)  # 给飞塔一些时间释放资源
+
+            retry_created = 0
+            self.logger.info(f"开始重试 {len(failed_addresses)} 个失败地址...")
+
+            with ThreadPoolExecutor(max_workers=max(5, self.config['MAX_WORKERS'] // 2)) as executor:
+                # 降低并发数重试
+                retry_futures = {executor.submit(self.create_address, name, subnet, retry_on_timeout=False): (name, subnet)
+                                for name, subnet in failed_addresses}
+
+                for future in as_completed(retry_futures):
+                    name, subnet = retry_futures[future]
+                    try:
+                        if future.result():
+                            retry_created += 1
+                            successful_names.append(name)
+                            created += 1
+                            failed -= 1
+                            if retry_created % 50 == 0:
+                                self.logger.info(f"  重试成功 {retry_created}/{len(failed_addresses)}...")
+                    except:
+                        pass
+
+            if retry_created > 0:
+                self.logger.info(f"重试完成: 成功 {retry_created}/{len(failed_addresses)}")
+
+        self.logger.info(f"创建完成: 总成功 {created}, 最终失败 {failed}")
+        return created, failed, successful_names
 
     def ensure_group_exists(self, group_name):
         """确保地址组存在"""
@@ -440,38 +499,58 @@ class FortiGateIPUpdater:
             return False
 
     def update_group_members(self, group_name, member_names):
-        """更新地址组成员"""
+        """一次性更新地址组成员（避免分批导致的越来越慢）"""
         url = f"{self.base_url}/cmdb/firewall/addrgrp/{group_name}"
         params = {'vdom': self.vdom}
 
         # 将成员名称转换为API需要的格式
         members = [{'name': name} for name in member_names]
 
-        # 分批更新（FortiGate可能有单次更新的限制）
-        batch_size = 1000
+        self.logger.info(f"开始更新地址组 {group_name}，共 {len(member_names)} 个成员")
+        self.logger.info(f"⚠️ 使用一次性更新模式（不分批）")
 
-        for i in range(0, len(members), batch_size):
-            batch = members[i:i+batch_size]
+        # 计算合理的超时时间：每1000条记录给30秒，最少3分钟
+        timeout = max(180, (len(members) // 1000 + 1) * 30)
+        self.logger.info(f"  设置超时时间：{timeout} 秒")
 
-            # 如果是第一批，直接替换；否则追加
-            if i == 0:
-                data = {'member': batch}
-            else:
-                # 先获取当前成员
-                response = self.session.get(url, params=params, verify=False, timeout=10)
+        # 一次性替换所有成员
+        data = {'member': members}
+
+        max_retries = 3
+        for retry in range(max_retries):
+            try:
+                self.logger.info(f"  正在提交 {len(members)} 个成员到 FortiGate...")
+                response = self.session.put(url, params=params, json=data, verify=False, timeout=timeout)
+
                 if response.status_code == 200:
-                    current = response.json().get('results', [{}])[0].get('member', [])
-                    data = {'member': current + batch}
+                    self.logger.info(f"✓ 地址组 {group_name} 更新成功 ({len(member_names)} 个成员)")
+                    return True
                 else:
-                    data = {'member': batch}
+                    error_msg = response.json() if response.status_code != 200 else 'Unknown error'
+                    if retry < max_retries - 1:
+                        wait_time = (retry + 1) * 60  # 第1次等60秒，第2次等120秒
+                        self.logger.warning(f"  更新失败 (HTTP {response.status_code})，等待 {wait_time} 秒后重试...")
+                        self.logger.warning(f"  错误详情: {error_msg}")
+                        time.sleep(wait_time)
+                    else:
+                        self.logger.error(f"  更新失败，已重试 {max_retries} 次")
+                        self.logger.error(f"  错误详情: {error_msg}")
+                        return False
 
-            response = self.session.put(url, params=params, json=data, verify=False, timeout=30)
-            if response.status_code != 200:
-                self.logger.error(f"更新地址组 {group_name} 失败 (批次 {i//batch_size + 1})")
-                return False
+            except Exception as e:
+                if 'timeout' in str(e).lower() or 'timed out' in str(e).lower():
+                    if retry < max_retries - 1:
+                        wait_time = (retry + 1) * 60
+                        self.logger.warning(f"  超时，等待 {wait_time} 秒后重试（第 {retry + 1}/{max_retries} 次）...")
+                        time.sleep(wait_time)
+                    else:
+                        self.logger.error(f"  超时失败，已重试 {max_retries} 次: {e}")
+                        return False
+                else:
+                    self.logger.error(f"  异常: {e}")
+                    return False
 
-        self.logger.info(f"地址组 {group_name} 更新成功 ({len(member_names)} 个成员)")
-        return True
+        return False
 
     def update_single_isp(self, isp_key):
         """更新指定数据源的IP地址（本版本仅 ALL-CN）"""
@@ -511,16 +590,18 @@ class FortiGateIPUpdater:
             name = f"{isp_key}_{ip_cidr.replace('/', '_')}"
             addresses.append((name, ip_cidr))
 
-        created, failed = self.batch_create_addresses(addresses)
+        created, failed, successful_names = self.batch_create_addresses(addresses)
 
-        # 4. 更新地址组
+        # 5. 更新地址组
         group_name = self.config['GROUPS'][isp_key]
         self.ensure_group_exists(group_name)
 
         # 只将成功创建的地址加入组
         if created > 0:
-            member_names = [name for name, _ in addresses]
-            self.update_group_members(group_name, member_names)
+            self.logger.info(f"将 {len(successful_names)} 个成功创建的地址加入组 {group_name}")
+            self.update_group_members(group_name, successful_names)
+        else:
+            self.logger.warning(f"没有成功创建的地址，跳过更新地址组")
 
         self.logger.info(f"{isp_key} 更新完成\n")
 
